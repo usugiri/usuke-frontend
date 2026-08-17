@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const API_BASE = "http://localhost:3001";
+const API_BASE = "https://usuke-backend-production.up.railway.app";
 
 export default function App() {
   const [messages, setMessages] = useState([]);
