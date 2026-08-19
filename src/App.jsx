@@ -15,6 +15,10 @@ export default function App() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // 🌟 控制长按菜单的新状态
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const pressTimer = useRef(null);
   const bottomRef = useRef(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -78,7 +82,7 @@ export default function App() {
     setIsSidebarOpen(false);
   };
 
-  // ✏️ 新增：重命名对话
+  // ✏️ 重命名对话
   const renameSession = async (id, oldName) => {
     const newName = prompt("请输入新的对话名称：", oldName || "New Chat");
     if (!newName || !newName.trim()) return;
@@ -92,7 +96,7 @@ export default function App() {
     setSessions(prev => (Array.isArray(prev) ? prev : []).map(s => s.id === id ? { ...s, name: newName.trim() } : s));
   };
 
-  // 🗑️ 新增：删除对话
+  // 🗑️ 删除对话
   const deleteSession = async (id) => {
     if (!confirm("确定要删除这个聊天记录吗？")) return;
     try {
@@ -102,6 +106,18 @@ export default function App() {
     if (currentSessionId === id) {
       setMessages([]);
     }
+  };
+
+  // 🌟 长按菜单控制逻辑
+  const handlePressStart = (id) => {
+    pressTimer.current = setTimeout(() => {
+      setMenuOpenId(id);
+      if (navigator.vibrate) navigator.vibrate(50); // 手机支持的话会轻轻震动一下
+    }, 500); // 长按 0.5 秒触发
+  };
+
+  const handlePressEnd = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
   };
 
   // ☁️ Supabase 云端记忆
@@ -150,8 +166,13 @@ export default function App() {
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#f8f9fa", fontFamily: "serif", position: "relative", overflow: "hidden" }}>
+      
+      {/* 侧边栏遮罩与菜单关闭遮罩 */}
       {isSidebarOpen && (
         <div onClick={() => setIsSidebarOpen(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(255,255,255,0.7)", zIndex: 40, backdropFilter: "blur(2px)" }} />
+      )}
+      {menuOpenId && (
+        <div onClick={() => setMenuOpenId(null)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} />
       )}
 
       {/* 侧边栏 */}
@@ -164,15 +185,48 @@ export default function App() {
           <button onClick={createNewSession} style={{ width: "100%", padding: "14px", borderRadius: "10px", border: "none", background: "#f5ebec", color: "#8a7479", cursor: "pointer" }}>+ New Chat</button>
         </div>
         
-        {/* 对话列表渲染处（带改名和删除） */}
+        {/* 🌟 核心改动：支持长按触发高级菜单的列表 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: "6px" }}>
           {filteredSessions.map((s) => (
-            <div key={s.id} style={{ display: "flex", alignItems: "center", borderRadius: "10px", background: currentSessionId === s.id && view === "chat" ? "#f5ebec" : "transparent" }}>
-              <button onClick={() => selectSession(s.id)} style={{ flex: 1, padding: "14px 8px 14px 16px", textAlign: "left", border: "none", background: "transparent", color: currentSessionId === s.id && view === "chat" ? "#8a7479" : "#666", fontSize: "15px", cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <div key={s.id} style={{ position: "relative", display: "flex", alignItems: "center", borderRadius: "10px", background: currentSessionId === s.id && view === "chat" ? "#f5ebec" : "transparent" }}>
+              <button 
+                onClick={() => { selectSession(s.id); setMenuOpenId(null); }}
+                onTouchStart={() => handlePressStart(s.id)}
+                onTouchEnd={handlePressEnd}
+                onTouchMove={handlePressEnd}
+                onMouseDown={() => handlePressStart(s.id)}
+                onMouseUp={handlePressEnd}
+                onMouseLeave={handlePressEnd}
+                style={{ flex: 1, padding: "14px 8px 14px 16px", textAlign: "left", border: "none", background: "transparent", color: currentSessionId === s.id && view === "chat" ? "#8a7479" : "#666", fontSize: "15px", cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+              >
                 {s.name || "New Chat"}
               </button>
-              <button onClick={() => renameSession(s.id, s.name)} style={{ background: "none", border: "none", color: "#999", cursor: "pointer", padding: "8px 4px" }}>✏️</button>
-              <button onClick={() => deleteSession(s.id)} style={{ background: "none", border: "none", color: "#ccc", cursor: "pointer", padding: "8px 12px 8px 4px", fontSize: "16px" }}>×</button>
+              
+              {/* 三点菜单图标（仅当前选中的对话或者悬停时显示，方便不用长按也能点） */}
+              <button 
+                onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === s.id ? null : s.id); }} 
+                style={{ background: "none", border: "none", color: "#999", cursor: "pointer", padding: "14px", display: currentSessionId === s.id ? "block" : "none" }}
+              >
+                ⋮
+              </button>
+
+              {/* 🌟 悬浮高级菜单 (类似 Claude) */}
+              {menuOpenId === s.id && (
+                <div style={{ position: "absolute", right: "10px", top: "45px", background: "#fff", boxShadow: "0 4px 15px rgba(0,0,0,0.1)", borderRadius: "12px", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: "130px", border: "1px solid #f0f0f0" }}>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); renameSession(s.id, s.name); setMenuOpenId(null); }} 
+                    style={{ padding: "14px 16px", border: "none", background: "transparent", textAlign: "left", fontSize: "14px", color: "#333", cursor: "pointer", borderBottom: "1px solid #f5f5f5" }}
+                  >
+                    ✏️ 重命名
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); deleteSession(s.id); setMenuOpenId(null); }} 
+                    style={{ padding: "14px 16px", border: "none", background: "transparent", textAlign: "left", fontSize: "14px", color: "#ff4d4f", cursor: "pointer" }}
+                  >
+                    🗑️ 删除对话
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
