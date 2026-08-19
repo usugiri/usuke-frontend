@@ -45,7 +45,44 @@ export default function App() {
     } catch { setMessages([]); }
   };
 
-    // 🛡️ 绝对不会白屏的新建对话函数
+     // 🛡️ 强力防御版：加载会话列表
+  const loadSessions = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sessions`);
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      
+      // 强力防御：不管后端返回啥，只要不是数组就强制变成 []，绝不让 map 报错
+      const sessionList = Array.isArray(data) ? data : (data.sessions || data.data || []);
+      setSessions(sessionList); 
+
+      if (sessionList.length > 0 && !currentSessionId) {
+        setCurrentSessionId(sessionList[0].id);
+      }
+    } catch (err) {
+      console.log("加载会话失败，启用空列表兜底", err);
+      setSessions([]); 
+    }
+  };
+
+  const selectSession = async (id) => {
+    setCurrentSessionId(id);
+    setView("chat");
+    setIsSidebarOpen(false);
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${id}/messages`);
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      
+      // 强力防御：确保消息列表永远是数组
+      setMessages(Array.isArray(data) ? data : (data.messages || data.data || []));
+    } catch (err) {
+      console.log("加载消息失败，清空当前聊天框", err);
+      setMessages([]); 
+    }
+  };
+
+  // 🛡️ 绝对不会白屏的新建对话函数（双保险兜底）
   const createNewSession = async () => {
     try {
       const res = await fetch(`${API_BASE}/sessions`, {
@@ -60,10 +97,23 @@ export default function App() {
       
       const data = await res.json();
       if (data && data.id) {
-        setSessions([data, ...sessions]);
+        setSessions((prev) => [data, ...(Array.isArray(prev) ? prev : [])]);
         selectSession(data.id);
         return;
       }
+    } catch (err) {
+      console.log("后端新建会话失败，启动前端本地新建模式", err);
+    }
+
+    // 🌟 核心防白屏兜底：直接在前端伪造一个新对话，绝对不报错
+    const localNewId = "local_" + Date.now();
+    const newLocalSession = { id: localNewId, name: "New Chat" };
+    setSessions((prev) => [newLocalSession, ...(Array.isArray(prev) ? prev : [])]);
+    setCurrentSessionId(localNewId);
+    setMessages([]);
+    setView("chat");
+    setIsSidebarOpen(false);
+  };
     } catch (err) {
       console.log("后端新建会话失败，启动前端本地新建模式", err);
     }
