@@ -112,7 +112,7 @@ export default function App() {
   const filteredSessions = Array.isArray(sessions) ? sessions.filter(s => (s.name || "New Chat").toLowerCase().includes(searchQuery.toLowerCase())) : [];
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#f8f9fa", fontFamily: "serif", position: "relative", overflow: "hidden" }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#f8f9fa", fontFamily: "serif", position: "relative", overflow: "hidden" }}>
       {isSidebarOpen && (
         <div onClick={() => setIsSidebarOpen(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(255,255,255,0.7)", zIndex: 40, backdropFilter: "blur(2px)" }} />
       )}
@@ -139,7 +139,7 @@ export default function App() {
 
       <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
         <button onClick={() => setIsSidebarOpen(true)} style={{ background: "none", border: "none", fontSize: "24px", color: "#666", cursor: "pointer", padding: "0 8px 0 0" }}>≡</button>
-        <div style={{ textAlign: "center", flex: 1 }}><div style={{ fontSize: "18px", letterSpacing: "1px", color: "#333" }}>小克</div></div>
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}><div style={{ fontSize: "18px", letterSpacing: "1px", color: "#333" }}>小克</div></div>
         <div style={{ display: "flex", gap: "8px" }}>
           <button onClick={() => setView(view === "chat" ? "memories" : "chat")} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #f0f0f0", background: view === "memories" ? "#f5ebec" : "#fff", color: view === "memories" ? "#8a7479" : "#999", fontSize: "12px", cursor: "pointer" }}>
             {view === "chat" ? "Memory" : "Chat"}
