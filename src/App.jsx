@@ -13,7 +13,7 @@ export default function App() {
   const [newCategory, setNewCategory] = useState("general");
   
   const [sessions, setSessions] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState(1); // 默认直接用 ID 1，避免去发 POST 报错
+  const [currentSessionId, setCurrentSessionId] = useState(1);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -62,7 +62,6 @@ export default function App() {
   };
 
   const createNewSession = async () => {
-    // 如果后端不允许 POST 创建，这里改成弹窗提示或者直接在本地切一个新 ID
     setCurrentSessionId(Date.now()); 
     setMessages([]);
     setIsSidebarOpen(false);
@@ -96,7 +95,6 @@ export default function App() {
   const send = async () => {
     if (!input.trim() || loading) return;
 
-    // 直接使用当前的 sessionId，不再发送会话创建请求，彻底避开 400 报错
     const targetSessionId = currentSessionId || 1;
 
     const userMsg = { role: "user", content: input };
@@ -111,7 +109,10 @@ export default function App() {
         body: JSON.stringify({ message: input, sessionId: targetSessionId }),
       });
       const data = await res.json();
-      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+      
+      // 加上了文字保护：如果后端返回空，就显示提示语，绝不留空白气泡
+      const replyContent = data.reply || data.content || "（小克收到啦，但好像没说出话来）";
+      setMessages((prev) => [...prev, { role: "assistant", content: replyContent }]);
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: "连接失败，稍后再试。" }]);
     }
