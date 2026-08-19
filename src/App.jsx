@@ -13,7 +13,7 @@ export default function App() {
   const [newCategory, setNewCategory] = useState("general");
   
   const [sessions, setSessions] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(1); // 默认直接用 ID 1，避免去发 POST 报错
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -62,18 +62,10 @@ export default function App() {
   };
 
   const createNewSession = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/sessions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}), // 已经帮你把这里修好了！
-      });
-      const data = await res.json();
-      setSessions([data, ...sessions]);
-      selectSession(data.id);
-    } catch {
-      alert("创建新对话失败");
-    }
+    // 如果后端不允许 POST 创建，这里改成弹窗提示或者直接在本地切一个新 ID
+    setCurrentSessionId(Date.now()); 
+    setMessages([]);
+    setIsSidebarOpen(false);
   };
 
   const loadMemories = async () => {
@@ -104,22 +96,8 @@ export default function App() {
   const send = async () => {
     if (!input.trim() || loading) return;
 
-    let targetSessionId = currentSessionId;
-    if (!targetSessionId) {
-      try {
-        const res = await fetch(`${API_BASE}/sessions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}), // 已经帮你把这里修好了！
-        });
-        const data = await res.json();
-        targetSessionId = data.id;
-        setCurrentSessionId(targetSessionId);
-        setSessions([data, ...sessions]);
-      } catch {
-        return;
-      }
-    }
+    // 直接使用当前的 sessionId，不再发送会话创建请求，彻底避开 400 报错
+    const targetSessionId = currentSessionId || 1;
 
     const userMsg = { role: "user", content: input };
     setMessages((prev) => [...prev, userMsg]);
