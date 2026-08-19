@@ -66,7 +66,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "New Chat" }),
+        body: JSON.stringify({}), // 已经帮你把这里修好了！
       });
       const data = await res.json();
       setSessions([data, ...sessions]);
@@ -110,7 +110,7 @@ export default function App() {
         const res = await fetch(`${API_BASE}/sessions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "New Chat" }),
+          body: JSON.stringify({}), // 已经帮你把这里修好了！
         });
         const data = await res.json();
         targetSessionId = data.id;
