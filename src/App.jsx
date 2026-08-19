@@ -7,9 +7,18 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("chat");
+  
+  // 记忆相关
   const [memories, setMemories] = useState([]);
   const [newMemory, setNewMemory] = useState("");
   const [newCategory, setNewCategory] = useState("general");
+  
+  // 会话与侧边栏相关
+  const [sessions, setSessions] = useState([]);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(""); // 搜索框状态
+  
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -17,8 +26,53 @@ export default function App() {
   }, [messages]);
 
   useEffect(() => {
+    loadSessions();
+  }, []);
+
+  useEffect(() => {
     if (view === "memories") loadMemories();
   }, [view]);
+
+  const loadSessions = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sessions`);
+      const data = await res.json();
+      setSessions(data);
+      if (data.length > 0 && !currentSessionId) {
+        selectSession(data[0].id);
+      }
+    } catch {
+      console.log("加载会话失败");
+    }
+  };
+
+  const selectSession = async (id) => {
+    setCurrentSessionId(id);
+    setView("chat");
+    setIsSidebarOpen(false); // 选完对话自动收起侧边栏
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${id}/messages`);
+      const data = await res.json();
+      setMessages(data || []);
+    } catch {
+      setMessages([]);
+    }
+  };
+
+  const createNewSession = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "New Chat" }),
+      });
+      const data = await res.json();
+      setSessions([data, ...sessions]);
+      selectSession(data.id);
+    } catch {
+      alert("创建新对话失败");
+    }
+  };
 
   const loadMemories = async () => {
     try {
@@ -47,15 +101,34 @@ export default function App() {
 
   const send = async () => {
     if (!input.trim() || loading) return;
+
+    let targetSessionId = currentSessionId;
+    if (!targetSessionId) {
+      try {
+        const res = await fetch(`${API_BASE}/sessions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "New Chat" }),
+        });
+        const data = await res.json();
+        targetSessionId = data.id;
+        setCurrentSessionId(targetSessionId);
+        setSessions([data, ...sessions]);
+      } catch {
+        return;
+      }
+    }
+
     const userMsg = { role: "user", content: input };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
+
     try {
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: input, conversation_id: 1 }),
+        body: JSON.stringify({ message: input, sessionId: targetSessionId }),
       });
       const data = await res.json();
       setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
@@ -65,30 +138,109 @@ export default function App() {
     setLoading(false);
   };
 
+  // 过滤搜索会话
+  const filteredSessions = sessions.filter(s => 
+    (s.name || "New Chat").toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#faf9f7", fontFamily: "serif" }}>
-      <div style={{ padding: "16px 20px", borderBottom: "1px solid #ede8e3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontSize: "20px", letterSpacing: "2px", color: "#4a4a4a" }}>小克</div>
-          <div style={{ fontSize: "12px", color: "#b0a8a0", marginTop: "2px" }}>here with you</div>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#f8f9fa", fontFamily: "serif", position: "relative", overflow: "hidden" }}>
+      
+      {/* 半透明遮罩 (侧边栏打开时显示) */}
+      {isSidebarOpen && (
+        <div 
+          onClick={() => setIsSidebarOpen(false)}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(255,255,255,0.7)", zIndex: 40, backdropFilter: "blur(2px)" }}
+        />
+      )}
+
+      {/* 滑动抽屉侧边栏 */}
+      <div style={{ 
+        position: "absolute", top: 0, bottom: 0, left: isSidebarOpen ? 0 : "-320px", 
+        width: "80%", maxWidth: "300px", background: "#ffffff", zIndex: 50, 
+        transition: "left 0.3s cubic-bezier(0.4, 0, 0.2, 1)", display: "flex", flexDirection: "column",
+        boxShadow: isSidebarOpen ? "4px 0 15px rgba(0,0,0,0.05)" : "none"
+      }}>
+        {/* 侧边栏头部 */}
+        <div style={{ padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: "24px", fontStyle: "italic", color: "#333" }}>Sessions</div>
+          <button onClick={() => setIsSidebarOpen(false)} style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid #f0f0f0", background: "#fff", color: "#999", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            ✕
+          </button>
         </div>
-        <button
-          onClick={() => setView(view === "chat" ? "memories" : "chat")}
-          style={{ padding: "8px 16px", borderRadius: "20px", border: "1px solid #e0dbd5", background: view === "memories" ? "#d4c8e8" : "#fff", color: "#4a4a4a", fontSize: "13px", cursor: "pointer" }}
-        >
-          {view === "chat" ? "记忆" : "← 对话"}
-        </button>
+
+        {/* 新对话按钮 */}
+        <div style={{ padding: "0 20px" }}>
+          <button onClick={createNewSession} style={{ width: "100%", padding: "14px", borderRadius: "10px", border: "none", background: "#f5ebec", color: "#8a7479", fontSize: "15px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center" }}>
+            + New Chat
+          </button>
+        </div>
+
+        {/* 历史对话列表 */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: "6px" }}>
+          {filteredSessions.map((s) => (
+            <button 
+              key={s.id} 
+              onClick={() => selectSession(s.id)}
+              style={{ 
+                padding: "14px 16px", textAlign: "left", borderRadius: "10px", border: "none", 
+                background: currentSessionId === s.id && view === "chat" ? "#f5ebec" : "transparent", 
+                color: currentSessionId === s.id && view === "chat" ? "#8a7479" : "#666", 
+                fontSize: "15px", cursor: "pointer",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+              }}
+            >
+              {s.name || "New Chat"}
+            </button>
+          ))}
+        </div>
+
+        {/* 底部搜索框 */}
+        <div style={{ padding: "20px", borderTop: "1px solid #f5f5f5" }}>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search sessions..."
+            style={{ width: "100%", padding: "12px 16px", borderRadius: "8px", border: "1px solid #f0f0f0", background: "#fff", fontSize: "14px", fontStyle: "italic", outline: "none", color: "#666", boxSizing: "border-box" }}
+          />
+        </div>
       </div>
 
+      {/* 主界面顶栏 */}
+      <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
+        <button onClick={() => setIsSidebarOpen(true)} style={{ background: "none", border: "none", fontSize: "24px", color: "#666", cursor: "pointer", padding: "0 8px 0 0" }}>
+          ≡
+        </button>
+        
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div style={{ fontSize: "18px", letterSpacing: "1px", color: "#333" }}>小克</div>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={() => setView(view === "chat" ? "memories" : "chat")}
+            style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #f0f0f0", background: view === "memories" ? "#f5ebec" : "#fff", color: view === "memories" ? "#8a7479" : "#999", fontSize: "12px", cursor: "pointer" }}
+          >
+            {view === "chat" ? "Memory" : "Chat"}
+          </button>
+        </div>
+      </div>
+
+      {/* 聊天区或记忆区 */}
       {view === "chat" ? (
         <>
-          <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+            {messages.length === 0 && (
+              <div style={{ margin: "auto", color: "#ccc", fontSize: "14px" }}>今天想聊点什么？</div>
+            )}
             {messages.map((m, i) => (
               <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
                 <div style={{
-                  maxWidth: "70%", padding: "10px 14px", borderRadius: "16px", fontSize: "14px", lineHeight: "1.6",
-                  background: m.role === "user" ? "#e8e0f0" : "#ffffff",
-                  color: "#3a3a3a", boxShadow: "0 1px 4px rgba(0,0,0,0.06)"
+                  maxWidth: "75%", padding: "12px 16px", borderRadius: "16px", fontSize: "15px", lineHeight: "1.6",
+                  background: m.role === "user" ? "#f5ebec" : "#ffffff",
+                  color: "#333", border: m.role === "assistant" ? "1px solid #f0f0f0" : "none",
+                  borderBottomRightRadius: m.role === "user" ? "4px" : "16px",
+                  borderBottomLeftRadius: m.role === "assistant" ? "4px" : "16px",
                 }}>
                   {m.content}
                 </div>
@@ -96,70 +248,64 @@ export default function App() {
             ))}
             {loading && (
               <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                <div style={{ padding: "10px 14px", borderRadius: "16px", background: "#ffffff", color: "#b0a8a0", fontSize: "14px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                  thinking...
+                <div style={{ padding: "12px 16px", borderRadius: "16px", background: "#ffffff", color: "#ccc", fontSize: "14px", borderBottomLeftRadius: "4px", border: "1px solid #f0f0f0" }}>
+                  小克正在想...
                 </div>
               </div>
             )}
             <div ref={bottomRef} />
           </div>
 
-          <div style={{ padding: "12px 16px", borderTop: "1px solid #ede8e3", display: "flex", gap: "8px", alignItems: "center", background: "#faf9f7" }}>
+          <div style={{ padding: "16px 20px", borderTop: "1px solid #f0f0f0", display: "flex", gap: "10px", alignItems: "center", background: "#fff" }}>
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="say something to 小克..."
-              style={{ flex: 1, padding: "10px 14px", borderRadius: "20px", border: "1px solid #e0dbd5", background: "#fff", fontSize: "14px", outline: "none", color: "#3a3a3a" }}
+              placeholder="告诉小克..."
+              style={{ flex: 1, padding: "12px 16px", borderRadius: "24px", border: "1px solid #f0f0f0", background: "#faf9f7", fontSize: "15px", outline: "none", color: "#333" }}
             />
-            <button onClick={send} style={{ padding: "10px 18px", borderRadius: "20px", border: "none", background: "#d4c8e8", color: "#4a4a4a", fontSize: "14px", cursor: "pointer" }}>
+            <button onClick={send} style={{ padding: "12px 20px", borderRadius: "24px", border: "none", background: "#f5ebec", color: "#8a7479", fontSize: "14px", cursor: "pointer" }}>
               发送
             </button>
           </div>
         </>
       ) : (
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px" }}>
-          <div style={{ fontSize: "16px", color: "#4a4a4a", marginBottom: "12px" }}>我们的记忆</div>
-
-          <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexDirection: "column" }}>
             <input
               value={newMemory}
               onChange={(e) => setNewMemory(e.target.value)}
-              placeholder="写下想记住的事..."
-              style={{ flex: 1, padding: "10px 14px", borderRadius: "20px", border: "1px solid #e0dbd5", background: "#fff", fontSize: "14px", outline: "none", color: "#3a3a3a" }}
+              placeholder="把重要的事写进档案里..."
+              style={{ padding: "12px", borderRadius: "8px", border: "1px solid #f0f0f0", background: "#fff", fontSize: "14px", outline: "none" }}
             />
-            <select
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              style={{ padding: "10px", borderRadius: "20px", border: "1px solid #e0dbd5", background: "#fff", fontSize: "13px", color: "#4a4a4a" }}
-            >
-              <option value="general">日常</option>
-              <option value="relationship">关系</option>
-              <option value="preferences">偏好</option>
-              <option value="milestones">里程碑</option>
-              <option value="user_profile">关于你</option>
-            </select>
-            <button onClick={addMemory} style={{ padding: "10px 16px", borderRadius: "20px", border: "none", background: "#d4c8e8", color: "#4a4a4a", fontSize: "13px", cursor: "pointer" }}>
-              记住
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <select
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #f0f0f0", background: "#fff", fontSize: "14px", color: "#666", outline: "none" }}
+              >
+                <option value="general">日常</option>
+                <option value="relationship">关系</option>
+                <option value="preferences">偏好</option>
+                <option value="milestones">里程碑</option>
+                <option value="user_profile">关于你</option>
+              </select>
+              <button onClick={addMemory} style={{ padding: "12px 24px", borderRadius: "8px", border: "none", background: "#f5ebec", color: "#8a7479", fontSize: "14px", cursor: "pointer" }}>
+                归档
+              </button>
+            </div>
           </div>
 
-          {memories.length === 0 ? (
-            <div style={{ color: "#b0a8a0", fontSize: "14px", textAlign: "center", marginTop: "40px" }}>
-              还没有记忆，写一条吧
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {memories.map((m) => (
-                <div key={m.id} style={{ padding: "12px 16px", background: "#fff", borderRadius: "16px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                  <div style={{ fontSize: "11px", color: "#b0a8a0", marginBottom: "4px" }}>
-                    {m.metadata?.category || "日常"}
-                  </div>
-                  <div style={{ fontSize: "14px", color: "#3a3a3a", lineHeight: "1.6" }}>{m.summary}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {memories.map((m) => (
+              <div key={m.id} style={{ padding: "16px", background: "#fff", borderRadius: "12px", border: "1px solid #f0f0f0" }}>
+                <div style={{ fontSize: "12px", color: "#ccc", marginBottom: "6px", fontWeight: "bold" }}>
+                  {m.metadata?.category || "日常"}
                 </div>
-              ))}
-            </div>
-          )}
+                <div style={{ fontSize: "14px", color: "#333", lineHeight: "1.6" }}>{m.summary}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
