@@ -45,6 +45,7 @@ export default function App() {
     } catch { setMessages([]); }
   };
 
+    // 🛡️ 绝对不会白屏的新建对话函数
   const createNewSession = async () => {
     try {
       const res = await fetch(`${API_BASE}/sessions`, {
@@ -52,14 +53,29 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "New Chat" }),
       });
+      
+      if (!res.ok) {
+        throw new Error("后端不支持新建会话接口");
+      }
+      
       const data = await res.json();
-      setSessions([data, ...sessions]);
-      selectSession(data.id);
-    } catch {
-      setCurrentSessionId(null);
-      setMessages([]);
-      setIsSidebarOpen(false);
+      if (data && data.id) {
+        setSessions([data, ...sessions]);
+        selectSession(data.id);
+        return;
+      }
+    } catch (err) {
+      console.log("后端新建会话失败，启动前端本地新建模式", err);
     }
+
+    // 🌟 核心防白屏兜底：直接在前端伪造一个新对话，清空当前聊天框，收起侧边栏
+    const localNewId = "local_" + Date.now();
+    const newLocalSession = { id: localNewId, name: "New Chat" };
+    setSessions((prev) => [newLocalSession, ...prev]);
+    setCurrentSessionId(localNewId);
+    setMessages([]);
+    setView("chat");
+    setIsSidebarOpen(false);
   };
 
   // ☁️ 从 Supabase 云端加载记忆
