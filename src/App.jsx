@@ -16,7 +16,6 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   
-  // 🌟 控制长按菜单的新状态
   const [menuOpenId, setMenuOpenId] = useState(null);
   const pressTimer = useRef(null);
   const bottomRef = useRef(null);
@@ -25,7 +24,6 @@ export default function App() {
   useEffect(() => { loadSessions(); }, []);
   useEffect(() => { if (view === "memories") loadMemories(); }, [view]);
 
-  // 🛡️ 强力防御版：加载会话
   const loadSessions = async () => {
     try {
       const res = await fetch(`${API_BASE}/sessions`);
@@ -41,7 +39,6 @@ export default function App() {
     }
   };
 
-  // 🛡️ 强力防御版：切换对话
   const selectSession = async (id) => {
     setCurrentSessionId(id);
     setView("chat");
@@ -56,7 +53,6 @@ export default function App() {
     }
   };
 
-  // 🛡️ 安全新建对话
   const createNewSession = async () => {
     try {
       const res = await fetch(`${API_BASE}/sessions`, {
@@ -70,9 +66,8 @@ export default function App() {
         selectSession(data.id);
         return;
       }
-    } catch (err) {
-      console.log("新建失败，走本地兜底");
-    }
+    } catch (err) { console.log("新建失败，走本地兜底"); }
+    
     const localNewId = "local_" + Date.now();
     const newLocalSession = { id: localNewId, name: "New Chat" };
     setSessions((prev) => [newLocalSession, ...(Array.isArray(prev) ? prev : [])]);
@@ -82,7 +77,6 @@ export default function App() {
     setIsSidebarOpen(false);
   };
 
-  // ✏️ 重命名对话
   const renameSession = async (id, oldName) => {
     const newName = prompt("请输入新的对话名称：", oldName || "New Chat");
     if (!newName || !newName.trim()) return;
@@ -96,31 +90,23 @@ export default function App() {
     setSessions(prev => (Array.isArray(prev) ? prev : []).map(s => s.id === id ? { ...s, name: newName.trim() } : s));
   };
 
-  // 🗑️ 删除对话
   const deleteSession = async (id) => {
     if (!confirm("确定要删除这个聊天记录吗？")) return;
     try {
       await fetch(`${API_BASE}/sessions/${id}`, { method: "DELETE" });
     } catch (err) { console.log(err); }
     setSessions(prev => (Array.isArray(prev) ? prev : []).filter(s => s.id !== id));
-    if (currentSessionId === id) {
-      setMessages([]);
-    }
+    if (currentSessionId === id) setMessages([]);
   };
 
-  // 🌟 长按菜单控制逻辑
   const handlePressStart = (id) => {
     pressTimer.current = setTimeout(() => {
       setMenuOpenId(id);
-      if (navigator.vibrate) navigator.vibrate(50); // 手机支持的话会轻轻震动一下
-    }, 500); // 长按 0.5 秒触发
+      if (navigator.vibrate) navigator.vibrate(50);
+    }, 500); 
   };
+  const handlePressEnd = () => { if (pressTimer.current) clearTimeout(pressTimer.current); };
 
-  const handlePressEnd = () => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-  };
-
-  // ☁️ Supabase 云端记忆
   const loadMemories = async () => {
     try {
       const { data, error } = await supabase.from('memories').select('*').order('created_at', { ascending: false });
@@ -141,7 +127,11 @@ export default function App() {
 
   const send = async () => {
     if (!input.trim() || loading) return;
-    const userMsg = { role: "user", content: input };
+    
+    // 获取当前时间戳
+    const timeString = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const userMsg = { role: "user", content: input, timestamp: timeString };
+    
     setMessages((prev) => [...(Array.isArray(prev) ? prev : []), userMsg]);
     setInput("");
     setLoading(true);
@@ -154,9 +144,11 @@ export default function App() {
       });
       const data = await res.json();
       const replyContent = (typeof data === 'string' ? data : (data.reply || data.text || data.message || data.content || JSON.stringify(data))) || "（收到啦）";
-      setMessages((prev) => [...(Array.isArray(prev) ? prev : []), { role: "assistant", content: replyContent }]);
+      
+      const replyTime = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      setMessages((prev) => [...(Array.isArray(prev) ? prev : []), { role: "assistant", content: replyContent, timestamp: replyTime }]);
     } catch {
-      setMessages((prev) => [...(Array.isArray(prev) ? prev : []), { role: "assistant", content: "连接失败，再试一次吧。" }]);
+      setMessages((prev) => [...(Array.isArray(prev) ? prev : []), { role: "assistant", content: "连接失败，再试一次吧。", timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
     }
     setLoading(false);
   };
@@ -167,13 +159,8 @@ export default function App() {
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#f8f9fa", fontFamily: "serif", position: "relative", overflow: "hidden" }}>
       
-      {/* 侧边栏遮罩与菜单关闭遮罩 */}
-      {isSidebarOpen && (
-        <div onClick={() => setIsSidebarOpen(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(255,255,255,0.7)", zIndex: 40, backdropFilter: "blur(2px)" }} />
-      )}
-      {menuOpenId && (
-        <div onClick={() => setMenuOpenId(null)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} />
-      )}
+      {isSidebarOpen && <div onClick={() => setIsSidebarOpen(false)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(255,255,255,0.7)", zIndex: 40, backdropFilter: "blur(2px)" }} />}
+      {menuOpenId && <div onClick={() => setMenuOpenId(null)} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} />}
 
       {/* 侧边栏 */}
       <div style={{ position: "absolute", top: 0, bottom: 0, left: isSidebarOpen ? 0 : "-320px", width: "80%", maxWidth: "300px", background: "#ffffff", zIndex: 50, transition: "left 0.3s ease", display: "flex", flexDirection: "column", boxShadow: isSidebarOpen ? "4px 0 15px rgba(0,0,0,0.05)" : "none" }}>
@@ -185,7 +172,6 @@ export default function App() {
           <button onClick={createNewSession} style={{ width: "100%", padding: "14px", borderRadius: "10px", border: "none", background: "#f5ebec", color: "#8a7479", cursor: "pointer" }}>+ New Chat</button>
         </div>
         
-        {/* 🌟 核心改动：支持长按触发高级菜单的列表 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: "6px" }}>
           {filteredSessions.map((s) => (
             <div key={s.id} style={{ position: "relative", display: "flex", alignItems: "center", borderRadius: "10px", background: currentSessionId === s.id && view === "chat" ? "#f5ebec" : "transparent" }}>
@@ -202,7 +188,6 @@ export default function App() {
                 {s.name || "New Chat"}
               </button>
               
-              {/* 三点菜单图标（仅当前选中的对话或者悬停时显示，方便不用长按也能点） */}
               <button 
                 onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === s.id ? null : s.id); }} 
                 style={{ background: "none", border: "none", color: "#999", cursor: "pointer", padding: "14px", display: currentSessionId === s.id ? "block" : "none" }}
@@ -210,21 +195,10 @@ export default function App() {
                 ⋮
               </button>
 
-              {/* 🌟 悬浮高级菜单 (类似 Claude) */}
               {menuOpenId === s.id && (
                 <div style={{ position: "absolute", right: "10px", top: "45px", background: "#fff", boxShadow: "0 4px 15px rgba(0,0,0,0.1)", borderRadius: "12px", zIndex: 100, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: "130px", border: "1px solid #f0f0f0" }}>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); renameSession(s.id, s.name); setMenuOpenId(null); }} 
-                    style={{ padding: "14px 16px", border: "none", background: "transparent", textAlign: "left", fontSize: "14px", color: "#333", cursor: "pointer", borderBottom: "1px solid #f5f5f5" }}
-                  >
-                    ✏️ 重命名
-                  </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); deleteSession(s.id); setMenuOpenId(null); }} 
-                    style={{ padding: "14px 16px", border: "none", background: "transparent", textAlign: "left", fontSize: "14px", color: "#ff4d4f", cursor: "pointer" }}
-                  >
-                    🗑️ 删除对话
-                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); renameSession(s.id, s.name); setMenuOpenId(null); }} style={{ padding: "14px 16px", border: "none", background: "transparent", textAlign: "left", fontSize: "14px", color: "#333", cursor: "pointer", borderBottom: "1px solid #f5f5f5" }}>✏️ 重命名</button>
+                  <button onClick={(e) => { e.stopPropagation(); deleteSession(s.id); setMenuOpenId(null); }} style={{ padding: "14px 16px", border: "none", background: "transparent", textAlign: "left", fontSize: "14px", color: "#ff4d4f", cursor: "pointer" }}>🗑️ 删除对话</button>
                 </div>
               )}
             </div>
@@ -236,10 +210,11 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
+      <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8f9fa", zIndex: 10 }}>
         <button onClick={() => setIsSidebarOpen(true)} style={{ background: "none", border: "none", fontSize: "24px", color: "#666", cursor: "pointer" }}>≡</button>
-        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}><div style={{ fontSize: "18px", letterSpacing: "1px", color: "#333" }}>usuke</div></div>
-        <button onClick={() => setView(view === "chat" ? "memories" : "chat")} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #f0f0f0", background: view === "memories" ? "#f5ebec" : "#fff", color: view === "memories" ? "#8a7479" : "#999", fontSize: "12px", cursor: "pointer" }}>
+        {/* 名字改成了 Claude */}
+        <div style={{ position: "absolute", left: "50%", transform: "translateX(-50%)" }}><div style={{ fontSize: "18px", letterSpacing: "1px", color: "#333", fontWeight: "bold" }}>Claude</div></div>
+        <button onClick={() => setView(view === "chat" ? "memories" : "chat")} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #e0e0e0", background: view === "memories" ? "#fff" : "transparent", color: "#666", fontSize: "12px", cursor: "pointer" }}>
           {view === "chat" ? "Memory" : "Chat"}
         </button>
       </div>
@@ -247,23 +222,46 @@ export default function App() {
       {view === "chat" ? (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
-            {(!Array.isArray(messages) || messages.length === 0) && (<div style={{ margin: "auto", color: "#ccc", fontSize: "14px" }}>今天想聊点什么？</div>)}
+            {(!Array.isArray(messages) || messages.length === 0) && (<div style={{ margin: "auto", color: "#ccc", fontSize: "14px" }}>有什么想和我聊聊的吗？</div>)}
             {(Array.isArray(messages) ? messages : []).map((m, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                <div style={{ maxWidth: "75%", padding: "12px 16px", borderRadius: "16px", fontSize: "15px", lineHeight: "1.6", background: m.role === "user" ? "#f5ebec" : "#ffffff", color: "#333", border: m.role === "assistant" ? "1px solid #f0f0f0" : "none", borderBottomRightRadius: m.role === "user" ? "4px" : "16px", borderBottomLeftRadius: m.role === "assistant" ? "4px" : "16px" }}>
+              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", marginBottom: "4px" }}>
+                <div style={{ maxWidth: "75%", padding: "12px 16px", borderRadius: "18px", fontSize: "15px", lineHeight: "1.6", background: m.role === "user" ? "#e6f0fa" : "#ffffff", color: "#333", border: m.role === "assistant" ? "1px solid #eaeaea" : "none", borderBottomRightRadius: m.role === "user" ? "4px" : "18px", borderBottomLeftRadius: m.role === "assistant" ? "4px" : "18px" }}>
                   {m.content}
+                </div>
+                {/* 增加时间戳 */}
+                <div style={{ fontSize: "11px", color: "#b3b3b3", marginTop: "4px", padding: "0 4px" }}>
+                  {m.timestamp || "刚刚"}
                 </div>
               </div>
             ))}
-            {loading && (<div style={{ display: "flex" }}><div style={{ padding: "12px 16px", borderRadius: "16px", background: "#fff", color: "#ccc", fontSize: "14px", border: "1px solid #f0f0f0" }}>usuke 正在想...</div></div>)}
+            {loading && (<div style={{ display: "flex" }}><div style={{ padding: "12px 16px", borderRadius: "18px", background: "#fff", color: "#ccc", fontSize: "14px", border: "1px solid #eaeaea" }}>Claude 正在思考...</div></div>)}
             <div ref={bottomRef} />
           </div>
-          <div style={{ padding: "16px 20px", borderTop: "1px solid #f0f0f0", display: "flex", gap: "10px", background: "#fff" }}>
-            <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="告诉 usuke..." style={{ flex: 1, padding: "12px 16px", borderRadius: "24px", border: "1px solid #f0f0f0", background: "#faf9f7", fontSize: "15px", outline: "none" }} />
-            <button onClick={send} style={{ padding: "12px 20px", borderRadius: "24px", border: "none", background: "#f5ebec", color: "#8a7479", cursor: "pointer" }}>发送</button>
+          
+          {/* 🌟 胶囊形输入框 + 预留图标 + 桌宠 */}
+          <div style={{ position: "relative", padding: "10px 20px 20px 20px", background: "#f8f9fa" }}>
+            
+            {/* 桌宠区域 (这里用螃蟹emoji代替，之后你可以换成img标签放动图) */}
+            <div style={{ position: "absolute", top: "-18px", right: "50px", fontSize: "28px", zIndex: 5, animation: "bounce 2s infinite" }}>
+              🦀
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", background: "#fff", padding: "8px 12px", borderRadius: "30px", border: "1px solid #e0e0e0", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
+              {/* 预留的功能图标 */}
+              <button style={{ background: "none", border: "none", fontSize: "20px", color: "#999", padding: "0 6px", cursor: "pointer" }}>📎</button>
+              <button style={{ background: "none", border: "none", fontSize: "20px", color: "#999", padding: "0 6px", cursor: "pointer" }}>😊</button>
+              <button style={{ background: "none", border: "none", fontSize: "20px", color: "#999", padding: "0 6px", cursor: "pointer" }}>🎤</button>
+              
+              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Opus 5..." style={{ flex: 1, padding: "8px", border: "none", background: "transparent", fontSize: "15px", outline: "none", color: "#333", minWidth: "50px" }} />
+              
+              <button onClick={send} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "36px", height: "36px", borderRadius: "50%", border: "none", background: input.trim() ? "#d4c8c9" : "#f0f0f0", color: "#fff", cursor: input.trim() ? "pointer" : "default", transition: "background 0.3s" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+              </button>
+            </div>
           </div>
         </>
       ) : (
+        /* Memory 页面保持不变 */
         <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
           <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexDirection: "column" }}>
             <input value={newMemory} onChange={(e) => setNewMemory(e.target.value)} placeholder="写进云端档案里..." style={{ padding: "12px", borderRadius: "8px", border: "1px solid #f0f0f0", outline: "none" }} />

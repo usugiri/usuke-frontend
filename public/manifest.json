@@ -1,6 +1,6 @@
 {
-  "name": "usuke",
-  "short_name": "usuke",
+  "name": "Claude",
+  "short_name": "Claude",
   "display": "standalone",
   "start_url": "/",
   "theme_color": "#faf9f7",
