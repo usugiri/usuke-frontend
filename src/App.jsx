@@ -8,16 +8,14 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("chat");
   
-  // 记忆相关
   const [memories, setMemories] = useState([]);
   const [newMemory, setNewMemory] = useState("");
   const [newCategory, setNewCategory] = useState("general");
   
-  // 会话与侧边栏相关
   const [sessions, setSessions] = useState([]);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(""); // 搜索框状态
+  const [searchQuery, setSearchQuery] = useState("");
   
   const bottomRef = useRef(null);
 
@@ -37,19 +35,23 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/sessions`);
       const data = await res.json();
-      setSessions(data);
-      if (data.length > 0 && !currentSessionId) {
-        selectSession(data[0].id);
+      if (Array.isArray(data)) {
+        setSessions(data);
+        if (data.length > 0 && !currentSessionId) {
+          selectSession(data[0].id);
+        }
+      } else {
+        setSessions([]);
       }
     } catch {
-      console.log("加载会话失败");
+      setSessions([]);
     }
   };
 
   const selectSession = async (id) => {
     setCurrentSessionId(id);
     setView("chat");
-    setIsSidebarOpen(false); // 选完对话自动收起侧边栏
+    setIsSidebarOpen(false);
     try {
       const res = await fetch(`${API_BASE}/sessions/${id}/messages`);
       const data = await res.json();
@@ -78,7 +80,7 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/memories`);
       const data = await res.json();
-      setMemories(data);
+      setMemories(Array.isArray(data) ? data : []);
     } catch {
       setMemories([]);
     }
@@ -138,15 +140,13 @@ export default function App() {
     setLoading(false);
   };
 
-  // 过滤搜索会话
-  const filteredSessions = sessions.filter(s => 
+  const filteredSessions = Array.isArray(sessions) ? sessions.filter(s => 
     (s.name || "New Chat").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ) : [];
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#f8f9fa", fontFamily: "serif", position: "relative", overflow: "hidden" }}>
       
-      {/* 半透明遮罩 (侧边栏打开时显示) */}
       {isSidebarOpen && (
         <div 
           onClick={() => setIsSidebarOpen(false)}
@@ -154,14 +154,12 @@ export default function App() {
         />
       )}
 
-      {/* 滑动抽屉侧边栏 */}
       <div style={{ 
         position: "absolute", top: 0, bottom: 0, left: isSidebarOpen ? 0 : "-320px", 
         width: "80%", maxWidth: "300px", background: "#ffffff", zIndex: 50, 
         transition: "left 0.3s cubic-bezier(0.4, 0, 0.2, 1)", display: "flex", flexDirection: "column",
         boxShadow: isSidebarOpen ? "4px 0 15px rgba(0,0,0,0.05)" : "none"
       }}>
-        {/* 侧边栏头部 */}
         <div style={{ padding: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: "24px", fontStyle: "italic", color: "#333" }}>Sessions</div>
           <button onClick={() => setIsSidebarOpen(false)} style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid #f0f0f0", background: "#fff", color: "#999", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
@@ -169,14 +167,12 @@ export default function App() {
           </button>
         </div>
 
-        {/* 新对话按钮 */}
         <div style={{ padding: "0 20px" }}>
           <button onClick={createNewSession} style={{ width: "100%", padding: "14px", borderRadius: "10px", border: "none", background: "#f5ebec", color: "#8a7479", fontSize: "15px", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center" }}>
             + New Chat
           </button>
         </div>
 
-        {/* 历史对话列表 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: "6px" }}>
           {filteredSessions.map((s) => (
             <button 
@@ -195,7 +191,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* 底部搜索框 */}
         <div style={{ padding: "20px", borderTop: "1px solid #f5f5f5" }}>
           <input
             value={searchQuery}
@@ -206,7 +201,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* 主界面顶栏 */}
       <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
         <button onClick={() => setIsSidebarOpen(true)} style={{ background: "none", border: "none", fontSize: "24px", color: "#666", cursor: "pointer", padding: "0 8px 0 0" }}>
           ≡
@@ -226,7 +220,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* 聊天区或记忆区 */}
       {view === "chat" ? (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
